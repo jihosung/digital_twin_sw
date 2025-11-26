@@ -224,8 +224,8 @@ class CameraSimulator:
         # Todo
         # 4x4 world_to_vehicle 변환행렬 (x, y, yaw)
         T_world_to_vehicle = np.array([
-            [ 1.0, 0.0, 0.0, 0.0],
-            [ 0.0, 1.0, 0.0, 0.0],
+            [ cos_vehicle_yaw, -sin_vehicle_yaw, 0.0, vehicle_x],
+            [ sin_vehicle_yaw, cos_vehicle_yaw, 0.0, vehicle_y],
             [ 0.0, 0.0, 1.0, 0.0],
             [ 0.0, 0.0, 0.0, 1.0]
         ], dtype=np.float64)
@@ -251,7 +251,22 @@ class CameraSimulator:
         ###########################################################################################
         # Todo
         # 합성 회전행렬 (camera_yaw_rad, camera_pitch_rad, camera_roll_rad)
-        R_camera = np.eye(3)
+        rot_x = np.array([
+            [1, 0, 0],
+            [0, math.cos(camera_roll_rad), -math.sin(camera_roll_rad)],
+            [0, math.sin(camera_roll_rad), math.cos(camera_roll_rad)]
+        ])
+        rot_y = np.array([
+            [math.cos(camera_pitch_rad), 0, math.sin(camera_pitch_rad)],
+            [0, 1, 0],
+            [-math.sin(camera_pitch_rad), 0, math.cos(camera_pitch_rad)]
+        ])
+        rot_z = np.array([
+            [math.cos(camera_yaw_rad), -math.sin(camera_yaw_rad), 0],
+            [math.sin(camera_yaw_rad), math.cos(camera_yaw_rad), 0],
+            [0, 0, 1]
+        ])
+        R_camera = rot_z @ rot_y @ rot_x
         ###########################################################################################
         
         ###########################################################################################
@@ -263,6 +278,9 @@ class CameraSimulator:
             [0.0, 0.0, 1.0, 0.0],
             [0.0, 0.0, 0.0, 1.0]
         ], dtype=np.float64)
+        T_vehicle_to_camera[:3, :3] = R_camera
+        T_vehicle_to_camera[:3, 3] = np.transpose(np.array([camera_translation_x, camera_translation_y, camera_translation_z]))
+        
         ###########################################################################################
 
         # ================================================================
@@ -272,7 +290,7 @@ class CameraSimulator:
         # 변환행렬 합성: T_world_to_camera = T_world_to_vehicle @ T_vehicle_to_camera
         ###########################################################################################
         # Todo
-        T_world_to_camera = np.eye(4)
+        T_world_to_camera = T_world_to_vehicle @ T_vehicle_to_camera
         ###########################################################################################
 
         # ================================================================
@@ -283,7 +301,7 @@ class CameraSimulator:
         # Todo
         try:
             # 역행렬 계산
-            T_camera_to_world = np.eye(4)
+            T_camera_to_world = np.linalg.inv(T_world_to_camera)
         except np.linalg.LinAlgError:
             # 역행렬이 존재하지 않는 경우 (특이행렬)
             rospy.logwarn("Camera transformation matrix is singular, cannot compute inverse")
@@ -300,7 +318,7 @@ class CameraSimulator:
         ###########################################################################################
         # Todo
         # 변환 수행
-        camera_point = np.array([0.0, 0.0, 0.0, 1.0])
+        camera_point = T_camera_to_world @ world_point
         ###########################################################################################
 
         # 동차좌표에서 일반좌표로 변환 (w=1로 정규화)
@@ -361,8 +379,8 @@ class CameraSimulator:
         # 이미지 평면으로 투영 (division-by-zero 보호)
         if abs(camera_z_forward) < 1e-9:
             return None, None, None
-        img_proj_x = 0.0
-        img_proj_y = 0.0
+        img_proj_x = camera_x_right / camera_z_forward
+        img_proj_y = camera_y_down / camera_z_forward
         ###########################################################################################
         # 수치 안정성 체크
         if not (math.isfinite(img_proj_x) and math.isfinite(img_proj_y)):
@@ -374,8 +392,9 @@ class CameraSimulator:
             # Todo
             # x = (1 + k1*r^2 + k2*r^4 + k3*r^6) * x + 2*p1*x*y + p2*(r^2 + 2*x^2)
             # y = (1 + k1*r^2 + k2*r^4 + k3*r^6) * y + p1*(r^2 + 2*y^2) + 2p2*x*y
-            img_proj_x = 0.0
-            img_proj_y = 0.0
+            r = math.sqrt(math.pow(img_proj_x,2) + math.pow(img_proj_y,2))
+            img_proj_x = (1+self.distortion_k1*math.pow(r,2) + self.distortion_k2*math.pow(r,4) + self.distortion_k3*math.pow(r,6))*img_proj_x + 2*self.distortion_p1*img_proj_x*img_proj_y + self.distortion_p2*(math.pow(r,2) + 2*math.pow(img_proj_x,2))
+            img_proj_y = (1+self.distortion_k1*math.pow(r,2) + self.distortion_k2*math.pow(r,4) + self.distortion_k3*math.pow(r,6))*img_proj_y + self.distortion_p1*(math.pow(r,2) + 2*img_proj_y**2) + 2*self.distortion_p2*img_proj_x*img_proj_y
             ###########################################################################################
             # 수치 안정성 체크
             if not (math.isfinite(img_proj_x) and math.isfinite(img_proj_y)):
@@ -392,8 +411,8 @@ class CameraSimulator:
         f = self.focal_length
         cx = self.image_center_u
         cy = self.image_center_v
-        u = 0.0
-        v = 0.0
+        u = f*img_proj_x + cx
+        v = f*img_proj_y + cy
         ###########################################################################################
         # 수치 및 경계 체크
         if not (math.isfinite(u) and math.isfinite(v)):
@@ -559,9 +578,9 @@ class CameraSimulator:
                 # Todo
                 # 바닥 점 (z=0.0)과 지붕 점 (z=height_val) 변환
                 # 바닥 점 변환
-                u0, v0, d0 = [0.0, 0.0, 0.0]
+                u0, v0, d0 = self.world_to_image_coordinates(point.x, point.y, 0.0)
                 # 지붕 점 변환
-                u1, v1, d1 = [0.0, 0.0, 0.0]
+                u1, v1, d1 = self.world_to_image_coordinates(point.x, point.y, height_val)
                 ###########################################################################################
                 # 바닥 점 처리
                 if u0 is not None and d0 > 0:
@@ -658,7 +677,7 @@ class CameraSimulator:
             # Todo
             for point in lane.lane_lines:
                 # 월드 좌표를 카메라 좌표계로 변환 (z=0.03은 차선이 바닥보다 약간 위에 있음을 표현)
-                u, v, depth = [0.0, 0.0, 0.0]
+                u, v, depth = self.world_to_image_coordinates(point.x, point.y, 0.03)
 
                 # 유효한 이미지 좌표가 나오면 폴리라인 포인트에 추가
                 if u is not None:
@@ -753,7 +772,7 @@ class CameraSimulator:
                 depths = []
                 for (world_point_x, world_point_y, world_point_z) in world_pts:
                     #
-                    u, v, d = [0.0, 0.0, 0.0]
+                    u, v, d = self.world_to_image_coordinates(world_point_x, world_point_y, world_point_z)
                     if u is None or d <= 0:
                         pts.append(None)
                     else:
@@ -826,7 +845,7 @@ class CameraSimulator:
                 depths = []
                 for (world_point_x, world_point_y, world_point_z) in world_pts:
                     #
-                    u, v, d = [0.0, 0.0, 0.0]
+                    u, v, d = self.world_to_image_coordinates(world_point_x, world_point_y, world_point_z)
                     if u is None or d <= 0:
                         pts.append(None)
                     else:
@@ -916,7 +935,7 @@ class CameraSimulator:
             ###########################################################################################
             # TODO
             # 교통 표지판의 월드 좌표를 이미지 좌표로 변환
-            u, v, depth = [0.0, 0.0, 0.0]
+            u, v, depth = self.world_to_image_coordinates(sign.pose.position.x, sign.pose.position.y, sign.pose.position.z)
             ###########################################################################################
             
             # 이미지 좌표가 유효하고 카메라 앞쪽에 있는지 확인
@@ -1019,7 +1038,7 @@ class CameraSimulator:
             ###########################################################################################
             # TODO
             # 신호등의 월드 좌표를 이미지 좌표로 변환
-            u, v, depth = [0.0, 0.0, 0.0]
+            u, v, depth = self.world_to_image_coordinates(light.pose.position.x, light.pose.position.y, light.pose.position.z)
             ###########################################################################################
             
             # 이미지 좌표가 유효하고 카메라 앞쪽에 있는지 확인

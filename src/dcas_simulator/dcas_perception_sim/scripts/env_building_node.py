@@ -115,11 +115,11 @@ class EnvBuildingPublisher:
                         #========= TODO: building 변수 채우기 =========#
                         #===================================================#
                         
-                        building_id      = 0          # 건물 ID
-                        building_x_point = 0.0         # X 좌표
-                        building_y_point = 0.0         # Y 좌표
-                        building_z_point = 0.0   # Z 좌표 (기본값: 0.0)
-                        building_height  = 0.0   # 높이 (기본값: 10.0)
+                        building_id      = int(row.get('id'))          # 건물 ID
+                        building_x_point = float(row.get('x'))         # X 좌표
+                        building_y_point = float(row.get('y'))         # Y 좌표
+                        building_z_point = float(row.get('z', 0.0))   # Z 좌표 (기본값: 0.0)
+                        building_height  = float(row.get('h'))   # 높이 (기본값: 10.0)
 
                         #===================================================#
                         #===================================================#
@@ -184,11 +184,11 @@ class EnvBuildingPublisher:
                     #===================================================#
                     #========= TODO: object msg의 빈부분 채워넣기 =========#
                     #===================================================#
-                    building_obj.geom_type = 0
-                    building_obj.id = 0
-                    building_obj.type = 0
-                    building_obj.footprint = Point32(x = 0.0, y = 0.0, z = 0.0)
-                    building_obj.height = 0.0
+                    building_obj.geom_type = Object.GEOM_POLYGON
+                    building_obj.id = building_id
+                    building_obj.type = Object.LABEL_BUILDING
+                    building_obj.footprint = building_points
+                    building_obj.height = building_height
                     building_obj.size = Vector3(building_width, building_length, building_obj.height)
                     building_obj.twist = Twist()  # 정적 객체이므로 속도는 0
                     

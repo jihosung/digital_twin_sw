@@ -75,10 +75,10 @@ class EnvTrafficLightPublisher:
                     # ============================ #
                     # ====== TODO: .csv 파싱 ====== #
                     # ============================ #
-                    x = 0.0
-                    y = 0.0
-                    z = 0.0
-                    state = 0
+                    x = float(row.get('x'))
+                    y = float(row.get('y'))
+                    z = float(row.get('z'))
+                    state = int(row.get('state'))
                     # ============================ #
                     # ============================ #
                     # ============================ #
@@ -100,8 +100,8 @@ class EnvTrafficLightPublisher:
                 # q_z = cos(phi/2)cos(theta/2)sin(psi/2) + sin(phi/2)sin(theta/2)cos(yaw/2)
                 # q_w = cos(phi/2)cos(theta/2)cos(psi/2) + sin(phi/2)sin(theta/2)sin(yaw/2)
 
-                tl.pose = Pose(position=Point(x=x, y=y, z=z), orientation=Quaternion(0, 0, 0, 0))
-                tl.state = 0
+                tl.pose = Pose(position=Point(x=x, y=y, z=z), orientation=Quaternion(0, 0, 0, 1))
+                tl.state = state
                 
                 # ====================================== #
                 # ====================================== #

@@ -174,7 +174,7 @@ class MotionSensorNode:
             # 실제 차량 상태가 있는 경우
             # 차량의 조향 휠 각도 사용 (도 단위)
             # rostopic echo /vehicle/state에서 메시지 구조 확인 가능
-            angle = 10.0 * math.sin(self.t)
+            angle = self.state.steering_wheel_angle_deg
             
             # 실제 차량 속도 기반 펄스 생성
             pulse_generated = self._generate_pulse_logic(dt, is_synthetic=False)
@@ -194,7 +194,7 @@ class MotionSensorNode:
         self.t_prev = t_now
         
         # TODO: 조향각에 노이즈 적용
-        angle = angle
+        angle = self._apply_noise(angle)
         
         # =================================================================
         # 4. 센서 데이터 발행
@@ -248,40 +248,40 @@ class MotionSensorNode:
             # 실제 모드: 차량 상태의 전진 속도 사용
             # 음수 속도 방지 (후진시 0으로 처리)
             # rostopic echo /vehicle/state에서 메시지 구조 확인 가능
-            base_speed = 0.0
+            base_speed = max(0.0, self.state.twist.linear.x) # 음수 속도 방지
         
         #############################################################
         # TODO: Wheel Speed Sensor 펄스 생성 로직 구현
         
         # 위치 변화량 계산
-        delta_position = 0.0
+        delta_position = base_speed * dt
 
         # 선형 거리로 휠 각도 계산
         # θ = s / r (라디안)
-        wheel_angle = 0.0
+        wheel_angle = delta_position / self.wheel_radius
         
         # 현재 누적 휠 회전 각도 계산
-        curr_angle = 0.0
+        curr_angle = self.prev_angle + wheel_angle
         
         # 각도를 [0, 2π] 범위로 정규화 (한 바퀴 = 2π 라디안)
         # np.remainder() 함수 사용
-        curr_angle = 0.0
+        curr_angle = np.remainder(curr_angle, 2*math.pi)
 
         # 펄스 위치 계산
         # position_in_pulse_cycle = (curr_angle / (2π)) * 2 * pulses_per_revolution
-        position_in_pulse_cycle = 0.0
+        position_in_pulse_cycle = (curr_angle / (2*math.pi)) * 2 * self.pulses_per_revolution
 
         # 펄스 상태 계산
         # 연속적인 위치를 가장 가까운 정수로 양자화
         # np.round() 함수 사용
-        quant_position_in_pulse_cycle = 0.0
+        quant_position_in_pulse_cycle = np.round(position_in_pulse_cycle)
 
         # 펄스 신호 생성
         # 0 또는 1
-        pulse = 0.0
+        pulse = np.remainder(quant_position_in_pulse_cycle, 2)
 
         # 다음 계산을 위해 현재 각도 저장
-        self.prev_angle = 0.0
+        self.prev_angle = curr_angle
         #############################################################
         return pulse
     
@@ -323,7 +323,7 @@ class MotionSensorNode:
         # =================================================================
 
         # TODO: 평균 0, 표준편차 self.angle_noise_std인 가우시안 노이즈 생성
-        noisy = 0.0
+        noisy = self.rng.normal(0.0, self.angle_noise_std)
         
         # 실제 신호에 노이즈 추가
         angle_noisy = angle + noisy

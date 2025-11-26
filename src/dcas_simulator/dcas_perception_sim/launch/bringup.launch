@@ -27,9 +27,22 @@
   </group>
 
   <!-- Rviz (optional) -->
-  <group if="$(arg with_rviz)">
+  <!-- <group if="$(arg with_rviz)">
     <node pkg="rviz" type="rviz" name="rviz" args="-d $(find dcas_perception_sim)/rviz/dcas_perception.rviz" />
+  </group> -->
+
+  <!-- Rviz (optional), GPT -->
+  <group if="$(arg with_rviz)">
+    <node pkg="rviz" type="rviz" name="rviz"
+          args="-d $(find dcas_perception_sim)/rviz/dcas_perception.rviz">
+
+      <!-- GPU 무시하고 CPU 렌더링 강제 -->
+      <env name="LIBGL_ALWAYS_SOFTWARE" value="1" />
+      <env name="MESA_LOADER_DRIVER_OVERRIDE" value="llvmpipe" />
+
+    </node>
   </group>
+
 
 </launch>
 

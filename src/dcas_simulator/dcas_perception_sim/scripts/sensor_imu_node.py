@@ -198,17 +198,17 @@ class IMUEmu:
             # 차량 상태 정보에서 필요한 값 추출
             # rostopic echo /vehicle/state에서 메시지 구조 확인 가능
             # 자세 정보 (쿼터니언)
-            msg.orientation = Quaternion(0, 0, 0, 1)
+            msg.orientation = self.state.pose.orientation
             
             # 각속도 (rad/s) - 3축 자이로스코프 데이터
-            msg.angular_velocity.x = 0.0
-            msg.angular_velocity.y = 0.0
-            msg.angular_velocity.z = 0.0
+            msg.angular_velocity.x = self.state.twist.angular.x
+            msg.angular_velocity.y = self.state.twist.angular.y
+            msg.angular_velocity.z = self.state.twist.angular.z
             
             # 선형가속도 (m/s^2) - 3축 가속도계 데이터
-            msg.linear_acceleration.x = 0.0
-            msg.linear_acceleration.y = 0.0
-            msg.linear_acceleration.z = 0.0
+            msg.linear_acceleration.x = self.state.acceleration.x
+            msg.linear_acceleration.y = self.state.acceleration.y
+            msg.linear_acceleration.z = self.state.acceleration.z
             #############################################################
         else:
             # 차량 상태가 없는 경우 기본값 설정
@@ -224,7 +224,7 @@ class IMUEmu:
         self._update_biases()
         
         # TODO IMU 메시지에 노이즈 적용 함수 완성
-        msg = msg
+        msg = self._apply_noise(msg)
         
         # TODO IMU 메시지에 공분산 설정 함수 완성
         msg = self._set_covariances(msg)
@@ -295,14 +295,14 @@ class IMUEmu:
         # TODO: 노이즈와 바이어스 적용
         # self.rng.normal 함수 사용
         # 각속도에 바이어스와 가우시안 노이즈 추가
-        angular_velocity_x_noisy = msg.angular_velocity.x + 0.0
-        angular_velocity_y_noisy = msg.angular_velocity.y + 0.0
-        angular_velocity_z_noisy = msg.angular_velocity.z + 0.0
+        angular_velocity_x_noisy = msg.angular_velocity.x + avx_bias + self.rng.normal(0.0, self.angular_velocity_noise_std)
+        angular_velocity_y_noisy = msg.angular_velocity.y + avy_bias + self.rng.normal(0.0, self.angular_velocity_noise_std)
+        angular_velocity_z_noisy = msg.angular_velocity.z + avz_bias + self.rng.normal(0.0, self.angular_velocity_noise_std)
         
         # 선형가속도에 바이어스와 가우시안 노이즈 추가
-        linear_acceleration_x_noisy = msg.linear_acceleration.x + 0.0
-        linear_acceleration_y_noisy = msg.linear_acceleration.y + 0.0
-        linear_acceleration_z_noisy = msg.linear_acceleration.z + 0.0
+        linear_acceleration_x_noisy = msg.linear_acceleration.x + lax_bias + self.rng.normal(0.0, self.linear_acceleration_noise_std)
+        linear_acceleration_y_noisy = msg.linear_acceleration.y + lay_bias + self.rng.normal(0.0, self.linear_acceleration_noise_std)
+        linear_acceleration_z_noisy = msg.linear_acceleration.z + laz_bias + self.rng.normal(0.0, self.linear_acceleration_noise_std)
         #############################################################
 
         # 노이즈가 적용된 값들을 메시지에 설정
@@ -342,16 +342,16 @@ class IMUEmu:
         # 랜덤 워크 증분 계산; sqrt(dt)로 스케일링
         # self.rng.normal 함수 사용
         # 자이로스코프 바이어스 업데이트: b_gyro = b_gyro + N(0, σ_gyro^2 * dt)
-        self.gyro_bias = np.zeros(3)
-        
+        self.gyro_bias = self.gyro_bias + self.rng.normal(0, self.gyro_bias_rw_std**2 * dt)
+
         # 가속도계 바이어스 업데이트: b_accel = b_accel + N(0, σ_accel^2 * dt)
-        self.accel_bias = np.zeros(3)
+        self.accel_bias = self.accel_bias + self.rng.normal(0, self.accel_bias_rw_std**2 * dt)
 
         # 바이어스 제한값 적용 (센서 물리적 한계 내로 제한)
         if self.enable_bias_limits:
             # 축별로 대칭 제한값으로 제한
-            self.gyro_bias = self.gyro_bias
-            self.accel_bias = self.accel_bias
+            self.gyro_bias = np.clip(self.gyro_bias, -self.gyro_bias_limit, self.gyro_bias_limit)
+            self.accel_bias = np.clip(self.accel_bias, -self.accel_bias_limit, self.accel_bias_limit)
         #############################################################
     
     # =====================================================================
@@ -388,6 +388,9 @@ class IMUEmu:
         # 자세 공분산 행렬 (3x3): [σ_roll², 0, 0; 0, σ_pitch², 0; 0, 0, σ_yaw²]
         # 각속도 공분산 행렬 (3x3): [σ_wx², 0, 0; 0, σ_wy², 0; 0, 0, σ_wz²]
         # 선형가속도 공분산 행렬 (3x3): [σ_ax², 0, 0; 0, σ_ay², 0; 0, 0, σ_az²]
+        oc[0] = oc[4] = oc[8] = self._var_orient
+        avc[0] = avc[4] = avc[8] = self._var_gyro
+        lac[0] = lac[4] = lac[8] = self._var_acc
         
         #############################################################
         

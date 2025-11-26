@@ -150,8 +150,8 @@ class VehicleModel:
         Returns:
             float: 모터축 기준 등가 관성 모멘트 [kg⋅m²]
         """
-        # TODO: 등가 관성 계산식 완성
-        J_eq = 1.0 
+        # TODO: 등가 관성 계산식 완성 Done
+        J_eq = self.Im + self.It + (self.Iw + self.m * self.Rw**2) * self.gear_ratio**2 
         return J_eq
     
     def calculate_resistances(self, velocity):
@@ -185,13 +185,13 @@ class VehicleModel:
         
         # TODO: 저항 계산식 완성
         # 구름저항
-        F_roll = 1.0
+        F_roll = self.k_R*self.m*self.g*np.cos(self.slope)*sgn
         
         # 공기저항
-        F_aero = 1.0
+        F_aero = 0.5*self.rho*self.Cd*self.A*(velocity**2)
         
         # 중력저항 (경사)
-        F_grav = 1.0
+        F_grav = self.m*self.g*np.sin(self.slope)
         
         return F_roll, F_aero, F_grav
     
@@ -223,12 +223,12 @@ class VehicleModel:
         
         # TODO: 페달 입력에 따른 모터 토크 및 브레이크 토크 계산식 완성, 물리적 제한 적용
         if u >= 0.0:
-            Tm = 1.0
+            Tm = self.accel_const*u if self.accel_const*u < self.motor_torque_max else self.motor_torque_max
             Tb = 0.0
         else:
             Tm = 0.0
-            Tb = 1.0                  
-        return Tm, Tb
+            Tb = self.brake_const*u if self.brake_const*u < self.brake_torque_max else self.brake_torque_max                  
+        return Tm, -Tb
 
     # =================================================================
     # 종방향 동역학 (오일러 적분)
@@ -256,23 +256,23 @@ class VehicleModel:
             float: 종가속도 [m/s²]
         """
         # 등가 관성 계산
-        J_eq = self.calculate_equivalent_inertia() # TODO: 등가 관성 계산식 완성
+        J_eq = self.calculate_equivalent_inertia() # TODO: 등가 관성 계산식 완성 Done
         
         # 페달 입력을 토크로 변환
-        Tm, Tb = self._pedal_to_torques(pedal_input) # TODO: 페달 입력에 따른 토크 계산식 완성
+        Tm, Tb = self._pedal_to_torques(pedal_input) # TODO: 페달 입력에 따른 토크 계산식 완성 Done
 
         # 저항력 계산
         v = self._v
-        F_roll, F_aero, F_grav = self.calculate_resistances(v) # TODO: 저항력 계산식 완성
+        F_roll, F_aero, F_grav = self.calculate_resistances(v) # TODO: 저항력 계산식 완성 Done
 
         # 로드 토크 (바퀴축 → 모터축 환산)
-        T_load = 1.0  # TODO: 로드 토크 계산식 작성
+        T_load = self.gear_ratio * self.Rw * (F_roll + F_aero + F_grav)  # TODO: 로드 토크 계산식 작성 Done
         
         # 모터 각가속도 계산 (토크 평형 방정식)
-        omega_dot = 1.0  # TODO: 모터 각가속도 계산식 작성
+        omega_dot = (Tm - (self.gear_ratio * Tb) - T_load) / J_eq  # TODO: 모터 각가속도 계산식 작성 Done
 
         # 종가속도
-        a_x = 1.0 # TODO: 종가속도 계산식 작성
+        a_x = omega_dot * self.gear_ratio * self.Rw # TODO: 종가속도 계산식 작성 Done
 
         # 속도 업데이트 (비음수 제약)
         self._v = max(0.0, self._v + a_x * dt)
@@ -304,13 +304,16 @@ class VehicleModel:
         Returns:
             tuple: (요각, 요각속도) [rad, rad/s]
         """
-        delta = 0.0 # TODO: 조향각 제한
+
+        sgn = 1 if steering > 0 else -1
+        delta = steering if abs(steering) <= self.max_steer else sgn*self.max_steer # TODO: 조향각 제한 Done
+
         v = self._v
         yaw_rate = self._yaw_rate
         beta = self._beta
 
         # TODO: 속도에 따른 모델 전환
-        if v < 0.0:
+        if v < 20 * 1000/3600:
             # =========================================================
             # 키네마틱 모델 (저속): 타이어 슬립 무시, 순수 기하학적 관계
             # =========================================================
@@ -322,52 +325,55 @@ class VehicleModel:
                 # 키네마틱 자전거 모델:
                 # beta = arctan(lr * tan(delta) / (lf + lr))
                 # yaw_rate = v * cos(beta) * tan(delta) / (lf + lr)
-                beta_target = 0.0   # TODO: 슬립각 계산식 작성 - delta_r은 0으로 가정
+                beta_target = np.arctan(self.lr*np.tan(delta) / (self.lf + self.lr))   # TODO: 슬립각 계산식 작성 - delta_r은 0으로 가정 done
                 
-                yaw_rate_new = 0.0  # TODO: 요 각속도 계산식 작성 - delta_r은 0으로 가정
+                yaw_rate_new = v*np.cos(beta_target)*np.tan(delta) / (self.lf + self.lr)  # TODO: 요 각속도 계산식 작성 - delta_r은 0으로 가정 done
             
             # 상태 미분값 계산 (부드러운 수렴을 위한 1차 시스템)
             beta_dot = (beta_target - beta) * 50.0
             yaw_rate_dot = (yaw_rate_new - yaw_rate) * 50.0
 
-            # TODO: 상태 업데이트 및 물리적 제한 적용
-            beta += 0.0
-            yaw_rate += 0.0
+            # TODO: 상태 업데이트 및 물리적 제한 적용 Done, yaw각도 update
+            beta += beta_dot * dt
+            beta = np.clip(beta, -self.beta_max, self.beta_max)
+            yaw_rate += yaw_rate_dot * dt
+            yaw_rate = np.clip(yaw_rate, -self.yaw_rate_max, self.yaw_rate_max)
             self._beta = beta
             self._yaw_rate = yaw_rate
-            self._yaw = self._yaw
-
+            self._yaw += yaw_rate * dt
         else:
             # =========================================================
             # 다이나믹 모델 (고속): 타이어 슬립과 측력 고려
             # =========================================================
             
-            # TODO: 타이어 슬립각 계산 및 제한
+            # TODO: 타이어 슬립각 계산 및 제한 Done
             # 전륜 슬립각: α_f = δ - β - lf*r/v
             # 후륜 슬립각: α_r = -β + lr*r/v
-            alpha_f = 0.0
-            alpha_r = 0.0
+            alpha_f = delta - beta - self.lf*yaw_rate/v
+            alpha_r = -beta + self.lr*yaw_rate/v
 
-            # TODO: 측력 계산 (선형 타이어 모델)
+            # TODO: 측력 계산 (선형 타이어 모델) Done
             # 전륜 측력: F_yf = Caf * α_f
             # 후륜 측력: F_yr = Car * α_r
-            Fyf = 0.0
-            Fyr = 0.0
+            Fyf = self.Caf*alpha_f
+            Fyr = self.Car*alpha_r
 
-            # TODO: 차체 슬립각 미분값 계산
+            # TODO: 차체 슬립각 미분값 계산 Done
             # β̇ = (Fyf + Fyr)/(m*v) - r
-            beta_dot = 0.0 
+            beta_dot = (Fyf + Fyr)/(self.m*v) - yaw_rate
 
-            # TODO: 요 각속도 미분값 계산 
+            # TODO: 요 각속도 미분값 계산 Done
             # ṙ = (lf*Fyf - lr*Fyr) / Iz 
-            yaw_rate_dot = 0.0 
+            yaw_rate_dot = (self.lf*Fyf - self.lr*Fyr) / self.Iz
 
-            # TODO: 상태 업데이트 및 물리적 제한 적용
-            beta += 0.0
-            yaw_rate += 0.0
+            # TODO: 상태 업데이트 및 물리적 제한 적용 Done
+            beta += beta_dot * dt
+            beta = np.clip(beta, -self.beta_max, self.beta_max)
+            yaw_rate += yaw_rate_dot * dt
+            yaw_rate = np.clip(yaw_rate, -self.yaw_rate_max, self.yaw_rate_max)
             self._beta = beta
-            self._yaw_rate = yaw_rate 
-            self._yaw = self._yaw
+            self._yaw_rate = yaw_rate
+            self._yaw += yaw_rate * dt
 
         return self._yaw, self._yaw_rate
 
@@ -391,12 +397,12 @@ class VehicleModel:
         Returns:
             tuple: (x_dot, y_dot) 전역 좌표계에서의 위치 변화율 [m/s]
         """
-        # TODO: 차량 헤딩 = 요각 + 슬립각 (무게중심 속도 방향)
-        heading = 0.0
+        # TODO: 차량 헤딩 = 요각 + 슬립각 (무게중심 속도 방향) Done
+        heading = self._yaw + self._beta
         
-        # TODO: 전역 좌표계에서의 위치 변화율 계산
-        x_dot = 0.0
-        y_dot = 0.0
+        # TODO: 전역 좌표계에서의 위치 변화율 계산 Done
+        x_dot = self._v * np.cos(heading)
+        y_dot = self._v * np.sin(heading)
         return x_dot, y_dot
 
     # =================================================================

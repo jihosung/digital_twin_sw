@@ -16,7 +16,7 @@ class LaneletRvizRouting:
         # ---------------- Params ----------------
         file_path = os.path.dirname(__file__)
         self.map_path = rospy.get_param("~map_path", os.path.join(file_path, "../lanelet2_maps", "Town02.osm"))  # (필수) Lanelet2 .osm 경로
-        origin_lat = rospy.get_param("~origin_lat", -0.0018001081)
+        origin_lat = rospy.get_param("~origin_lat", -0.0018001081) # 타원 표면을 평면으로 근사하는 중심점이기 때문에 잘못 설정하면 m 오차 발생
         origin_lon = rospy.get_param("~origin_lon", -0.00008482343)
         self.fixed_frame = rospy.get_param("~frame_id", "map")
         self.draw_boundaries = rospy.get_param("~draw_boundaries", True)
@@ -31,7 +31,7 @@ class LaneletRvizRouting:
         self.endpoint_scale = rospy.get_param("~endpoint_scale", 2.0)
 
         # --------------- Load Map ---------------
-        self.projector = lanelet2.projection.UtmProjector(
+        self.projector = lanelet2.projection.UtmProjector( # Utm projector 사용한것
             lanelet2.io.Origin(origin_lat, origin_lon)
         )
         self.map_lanelet2 = lanelet2.io.load(self.map_path, self.projector)

@@ -84,10 +84,10 @@ class EnvGuardrailPublisher:
                     #===================================================#
                     #============== TODO: .csv 파일 파싱 ================#
                     #===================================================#
-                    cx = 0.0
-                    cy = 0.0 
-                    yaw_deg = 0.0    
-                    length = 0.0     # set default 10.0
+                    cx = float(row.get('cx', 0.0))
+                    cy = float(row.get('cy', 0.0))
+                    yaw_deg = float(row.get('yaw_deg', 0.0))    
+                    length = float(row.get('length', 0.0))     # set default 10.0
                     #===================================================#
                     #===================================================#
                     #===================================================#
@@ -101,10 +101,11 @@ class EnvGuardrailPublisher:
                 #==============================================================#
                 #==== TODO: object msg의 빈부분 채우기(geom_type은 채울필요 X) ====#
                 #==============================================================#
-                obj.id = 0
-                obj.type = 0
-                obj.pose = Pose(position=Point(x=0.0, y=0.0, z=0.0), orientation=yaw_to_quat(0.0)) # Pose
-                obj.size = Vector3(0.0, 0.0, 0.0) # Size
+                obj.id = idx
+                idx += 1
+                obj.type = Object.LABEL_GUARDRAIL
+                obj.pose = Pose(position=Point(x=cx, y=cy, z=0.0), orientation=yaw_to_quat(yaw_deg)) # Pose
+                obj.size = Vector3(length, 0.2, 0.8) # Size
                 obj.twist = Twist() # Zero twist
                 #==============================================================#
                 #==== TODO: object msg의 빈부분 채우기(geom_type은 채울필요 X) ====#

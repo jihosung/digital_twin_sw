@@ -330,8 +330,8 @@ class GNSSEmu:
         # TODO: 자오선 곡률반지름 계산식 작성
         # 자오선 곡률반지름: M = (ab)^2 / ((acosφ)^2+(bsinφ)^2)^(3/2)
         # 여기서 φ는 위도, a는 장반축, b는 단반축
-        num = 1.0
-        den = 1.0
+        num = (a*b)**2
+        den = math.pow((a*math.cos(lat))**2 + (b*math.sin(lat))**2, 3/2)
 
         radius = num / den
         #############################################################
@@ -368,8 +368,8 @@ class GNSSEmu:
         # TODO: 수직 곡률반지름 계산식 작성
         # 수직 곡률반지름: N = a^2 / ((acosφ)^2 + (bsinφ)^2)^(1/2)
         # 여기서 φ는 위도, a는 장반축, b는 단반축
-        num = 1.0
-        den = 1.0
+        num = a**2
+        den = math.pow((a*math.cos(lat))**2 + (b*math.sin(lat))**2, 1/2)
         
         normal_radius = num / den
         #############################################################
@@ -411,20 +411,20 @@ class GNSSEmu:
         ref_lat = np.deg2rad(ref_llh[0])
         
         # 곡률반지름 계산 (측지학적 정확도를 위해 필요)
-        meridional_r = self.meridional_radius(0.0) # TODO: 자오선 곡률반지름 계산 함수 완성
-        normal_r = self.normal_radius(0.0) # TODO: 수직 곡률반지름 계산 함수 완성
+        meridional_r = self.meridional_radius(ref_llh[0]) # TODO: 자오선 곡률반지름 계산 함수 완성
+        normal_r = self.normal_radius(ref_llh[0]) # TODO: 수직 곡률반지름 계산 함수 완성
 
         # 각도 변화량 계산
         # 북쪽 변위 → 위도 변화: Δφ = ΔN / M
         # 동쪽 변위 → 경도 변화: Δλ = ΔE / (N × cos(φ))
-        delta_lat_deg = np.rad2deg(0.0) # TODO: 위도 변화량 계산, np.rad2deg 사용
-        delta_lon_deg = np.rad2deg(0.0) # TODO: 경도 변화량 계산, np.rad2deg 사용
+        delta_lat_deg = np.rad2deg(enu[1] / (meridional_r + ref_height)) # TODO: 위도 변화량 계산, np.rad2deg 사용
+        delta_lon_deg = np.rad2deg(enu[0] / ((normal_r + ref_height) * np.cos(ref_lat))) # TODO: 경도 변화량 계산, np.rad2deg 사용
         #############################################################
         
         # TODO: 최종 WGS84 좌표 계산
-        llh[0] = ref_llh[0]  # 위도 (Latitude)
-        llh[1] = ref_llh[1]  # 경도 (Longitude)
-        llh[2] = ref_llh[2]  # 고도 (Height)
+        llh[0] = ref_llh[0] + delta_lat_deg # Latitude
+        llh[1] = ref_llh[1] + delta_lon_deg # Longitude
+        llh[2] = ref_llh[2] + enu[2] # Height
             
         return llh
 
@@ -456,41 +456,41 @@ class GNSSEmu:
         m2deg_lon = 1.0 / (111320.0 * max(1e-6, math.cos(lat_rad)))
 
         # TODO: GNSS 노이즈 적용
-        n_lat_m = 0.0   # [m], self.rng.normal() 사용
-        n_lon_m = 0.0   # [m], self.rng.normal() 사용
-        n_alt_m = 0.0   # [m], self.rng.normal() 사용
+        n_lat_m = self.rng.normal(0.0, self.pos_noise_std)   # [m], self.rng.normal() 사용
+        n_lon_m = self.rng.normal(0.0, self.pos_noise_std)   # [m], self.rng.normal() 사용
+        n_alt_m = self.rng.normal(0.0, self.alt_noise_std)   # [m], self.rng.normal() 사용
 
         # TODO: 노이즈를 도 단위로 변환하여 적용
-        msg.latitude  += n_lat_m
-        msg.longitude += n_lon_m
+        msg.latitude  += (n_lat_m * m2deg_lat)
+        msg.longitude += (n_lon_m * m2deg_lon)
         msg.altitude  += n_alt_m
 
         # TODO: 음영 지역에서 추가 위치 노이즈 적용
         if shadow_pos_std > 0.0:
-            sh_lat_m = 0.0
-            sh_lon_m = 0.0
+            sh_lat_m = self.rng.normal(0.0, shadow_pos_std)
+            sh_lon_m = self.rng.normal(0.0, shadow_pos_std)
             # TODO: 노이즈를 도 단위로 변환하여 적용
-            msg.latitude += sh_lat_m
-            msg.longitude += sh_lon_m
+            msg.latitude += (sh_lat_m * m2deg_lat)
+            msg.longitude += (sh_lon_m * m2deg_lon)
 
         # TODO: Odometry 노이즈 적용
-        msg_odom.pose.pose.position.x += 0.0 # self.rng.normal() 사용
-        msg_odom.pose.pose.position.y += 0.0 # self.rng.normal() 사용
-        msg_odom.pose.pose.position.z += 0.0 # self.rng.normal() 사용
+        msg_odom.pose.pose.position.x += self.rng.normal(0.0, self.pos_noise_std) # self.rng.normal() 사용
+        msg_odom.pose.pose.position.y += self.rng.normal(0.0, self.pos_noise_std) # self.rng.normal() 사용
+        msg_odom.pose.pose.position.z += self.rng.normal(0.0, self.pos_noise_std) # self.rng.normal() 사용
 
         # TODO: 음영 지역에서 추가 위치 노이즈 적용
         if shadow_pos_std > 0.0:
-            msg_odom.pose.pose.position.x += 0.0
-            msg_odom.pose.pose.position.y += 0.0
+            msg_odom.pose.pose.position.x += self.rng.normal(0.0, shadow_pos_std)
+            msg_odom.pose.pose.position.y += self.rng.normal(0.0, shadow_pos_std)
 
         # TODO: twist 노이즈 적용
-        msg_odom.twist.twist.linear.x  += 0.0 # self.rng.normal() 사용
-        msg_odom.twist.twist.linear.y  += 0.0 # self.rng.normal() 사용
-        msg_odom.twist.twist.linear.z  += 0.0 # self.rng.normal() 사용
+        msg_odom.twist.twist.linear.x  += self.rng.normal(0.0, self.vel_noise_std) # self.rng.normal() 사용
+        msg_odom.twist.twist.linear.y  += self.rng.normal(0.0, self.vel_noise_std) # self.rng.normal() 사용
+        msg_odom.twist.twist.linear.z  += self.rng.normal(0.0, self.vel_noise_std) # self.rng.normal() 사용
 
-        msg_odom.twist.twist.angular.x += 0.0 # self.rng.normal() 사용
-        msg_odom.twist.twist.angular.y += 0.0 # self.rng.normal() 사용
-        msg_odom.twist.twist.angular.z += 0.0 # self.rng.normal() 사용
+        msg_odom.twist.twist.angular.x += self.rng.normal(0.0, self.ang_noise_std) # self.rng.normal() 사용
+        msg_odom.twist.twist.angular.y += self.rng.normal(0.0, self.ang_noise_std) # self.rng.normal() 사용용
+        msg_odom.twist.twist.angular.z += self.rng.normal(0.0, self.ang_noise_std) # self.rng.normal() 사용용
 
         return msg, msg_odom
 
@@ -666,11 +666,11 @@ class GNSSEmu:
         #############################################################
         # TODO: GNSS Shadow Zone 반영
         for zx, zy, zstd, rr in self.shadow_zones:
-            dx = 0.0
-            dy = 0.0
-            if dx * dx + dy * dy <= 1.0:
+            dx = zx - x
+            dy = zy - y
+            if dx * dx + dy * dy <= rr**2:
                 if zstd > max_std:
-                    max_std = 0.0
+                    max_std = zstd
         #############################################################
         return max_std
 

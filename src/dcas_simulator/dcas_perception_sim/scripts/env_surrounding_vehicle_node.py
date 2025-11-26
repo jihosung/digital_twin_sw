@@ -141,12 +141,12 @@ class EnvSurroundingVehiclePublisher:
             # ================================= #
             # ====== TODO: obj msg 채우기 ====== #
             # ================================= #
-            obj.id = 0
-            obj.type = 0
-            obj.pose = Pose(position=Point(x=0.0, y=0.0, z=0.0), orientation=self.YawToQuaternion(0.0))
-            obj.size = Vector3(0.0, 0.0, 0.0) # Default size for vehicle (4.5, 1.9, 1.6)
-            twist.linear.x = 0.0 # Linear velocity in x direction
-            twist.linear.y = 0.0 # Linear velocity in y direction
+            obj.id = vehicle_id
+            obj.type = Object.LABEL_VEHICLE
+            obj.pose = Pose(position=Point(x=point_x, y=point_y, z=0.0), orientation=self.YawToQuaternion(yaw))
+            obj.size = Vector3(4.5, 1.9, 1.6) # Default size for vehicle (4.5, 1.9, 1.6)
+            twist.linear.x = speed * math.cos(yaw) # Linear velocity in x direction
+            twist.linear.y = speed * math.sin(yaw) # Linear velocity in y direction
             # ================================= #
             # ================================= #
             # ================================= #
@@ -178,11 +178,11 @@ class EnvSurroundingVehiclePublisher:
                     # ============================ #
                     # ====== TODO: .csv 파싱 ====== #
                     # ============================ #
-                    vehicle_id = 0 # Vehicle ID
-                    seq = 0 # Waypoint order, default = 0
-                    x = 0.0 # X coordinate
-                    y = 0.0 # Y coordinate
-                    speed_mps = 0.0 # Speed
+                    vehicle_id = int(row.get('id')) # Vehicle ID
+                    seq = int(row.get('seq')) # Waypoint order, default = 0
+                    x = float(row.get('x')) # X coordinate
+                    y = float(row.get('y')) # Y coordinate
+                    speed_mps = float(row.get('speed_mps')) # Speed
                     # ============================ #
                     # ============================ #
                     # ============================ #

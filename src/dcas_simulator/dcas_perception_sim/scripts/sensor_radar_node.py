@@ -892,8 +892,8 @@ class RadarEmu:
         # Hint: 회전행렬 계산 수식
         # [x_base]   [ cos(θ) -sin(θ)] [delta_x]
         # [y_base] = [ sin(θ)  cos(θ)] [delta_y]
-        x_base = 0.0 # TODO: x_base 계산
-        y_base = 0.0 # TODO: y_base 계산
+        x_base = cos_ego_yaw * delta_x - sin_ego_yaw * delta_y # TODO: x_base 계산
+        y_base = sin_ego_yaw * delta_x + cos_ego_yaw * delta_y # TODO: y_base 계산
         
         # ego_frame -> 레이더
         radar_yaw_rad = math.radians(self.radar_yaw_deg)
@@ -903,8 +903,8 @@ class RadarEmu:
         # Hint: 회전행렬 계산 수식
         # [x_radar]   [ cos(φ) -sin(φ)] [x_base - tx]
         # [y_radar] = [ sin(φ)  cos(φ)] [y_base - ty]
-        x_radar = 0.0 # TODO: x_radar 계산, Hint: self.radar_tx, self.radar_ty 사용
-        y_radar = 0.0 # TODO: y_radar 계산, Hint: self.radar_tx, self.radar_ty 사용
+        x_radar = cos_radar_yaw*(x_base - self.radar_tx) - sin_radar_yaw*(y_base - self.radar_ty) # TODO: x_radar 계산, Hint: self.radar_tx, self.radar_ty 사용
+        y_radar = sin_radar_yaw*(x_base - self.radar_tx) + cos_radar_yaw*(y_base - self.radar_ty) # TODO: y_radar 계산, Hint: self.radar_tx, self.radar_ty 사용
         
         return x_radar, y_radar
         #############################################################
@@ -914,9 +914,9 @@ class RadarEmu:
     def InRadarFov(self, x_radar: float, y_radar: float) -> bool:
         angle_deg = math.degrees(math.atan2(y_radar, x_radar))
         
-        # 실습: FOV 내에 있는지 확인
-        b_is_front = False # TODO: 전방에 포인트가 있는지 검사
-        b_is_fov = False  # TODO: FOV 내에 포인트가 있는지 검사, Hint: self.fov_deg 사용
+        # 실습: FOV 내에 있는지 확인 HOW?
+        b_is_front = True if x_radar > 0 else False # TODO: 전방에 포인트가 있는지 검사
+        b_is_fov = True if abs(angle_deg) < self.fov_deg/2 else False  # TODO: FOV 내에 포인트가 있는지 검사, Hint: self.fov_deg 사용
         return b_is_front and b_is_fov
 
     # 거리 양자화 - 레이더 거리 해상도에 따른 거리값 양자화
@@ -936,7 +936,7 @@ class RadarEmu:
         angle_deg = math.degrees(angle_rad)
         # 실습: 각도 해상도에 따른 양자화 구현
         # TODO: self.angle_resolution 사용
-        quantized_deg = 0.0 
+        quantized_deg = round(angle_deg / self.angle_resolution) * self.angle_resolution
         return math.radians(quantized_deg)
     
     # 전력 계산 - 레이더 방정식을 이용한 수신 전력 계산 (거리, RCS 기반)
@@ -961,7 +961,7 @@ class RadarEmu:
         # Hint: 3) 와트를 dBm으로 변환: P_dBm = 10*log10(P_watts*1000)
         
         # 실습: 0 나누기 방지 및 안전 거리 설정
-        range_safe = 10.0  # 실습: max(range_m, 0.1)로 최소값 보장
+        range_safe = max(range_m, 0.1)  # 실습: max(range_m, 0.1)로 최소값 보장
         
         # 객체 타입에 따른 반사율 계산
         if object_type in self.object_props:
@@ -976,14 +976,16 @@ class RadarEmu:
         # 레이더 방정식 상수 (P_t * G_t * G_r * λ² * σ) / ((4π)³ * L)
         # TODO: 레이더 방정식 상수 완성, Hint: self.transmit_power_watts, self.transmit_gain_linear,
         #       self.receive_gain_linear, self.wavelength, self.system_losses_linear 사용
-        self.radar_constant = 1e-10
-        received_power_watts = 1e-10  # 실습: self.radar_constant * effective_rcs / (range_safe**4)
+        num = self.transmit_power_watts * self.transmit_gain_linear * self.receive_gain_linear * (self.wavelength**2)
+        den = pow(4*math.pi, 3) * self.system_losses_linear
+        self.radar_constant = num / den
+        received_power_watts = self.radar_constant * effective_rcs / pow(range_safe, 4)  # 실습: self.radar_constant * effective_rcs / (range_safe**4)
         
         # 실습: 와트를 dBm으로 변환
         if received_power_watts <= 0:
             return -200.0  # 매우 낮은 값 (사실상 감지 불가능)
         
-        received_power_dbm = -50.0  # 실습: 10.0 * math.log10(received_power_watts * 1000)
+        received_power_dbm = 10.0 * math.log10(received_power_watts * 1000)  # 실습: 10.0 * math.log10(received_power_watts * 1000)
         
         return received_power_dbm
         #############################################################
@@ -1007,7 +1009,7 @@ class RadarEmu:
         
         # 실습: 전력 임계값 검사
         # TODO: if 문을 통한 임계값 검사, Hint: self.power_threshold_dbm 사용
-        if True:
+        if power_dbm < self.power_threshold_dbm:
             return False
         
         # 실습: 확률적 감지 구현
@@ -1054,20 +1056,20 @@ class RadarEmu:
             return x_radar, y_radar
             
         # 실습: 직교좌표를 극좌표로 변환
-        range_true = 10.0  # 실습: math.hypot으로 거리 계산
-        azimuth_true = 0.0  # 실습: math.atan2로 방위각 계산
+        range_true = math.hypot(x_radar, y_radar)  # 실습: math.hypot으로 거리 계산
+        azimuth_true = math.atan2(y_radar, x_radar)  # 실습: math.atan2로 방위각 계산
         
         # 실습: 가우시안 노이즈 생성
-        range_noise = 0.0  # 실습: self.rng.normal로 거리 노이즈 생성, Hint: self.range_noise_std 사용
-        azimuth_noise_rad = 0.0  # 실습: 각도 노이즈 생성 및 라디안 변환, Hint: self.azimuth_noise_std 사용
+        range_noise = self.rng.normal(0, self.range_noise_std)  # 실습: self.rng.normal로 거리 노이즈 생성, Hint: self.range_noise_std 사용
+        azimuth_noise_rad = math.radians(self.rng.normal(0, self.azimuth_noise_std))  # 실습: 각도 노이즈 생성 및 라디안 변환, Hint: self.azimuth_noise_std 사용
         
         # 실습: 노이즈 적용
-        range_noisy = range_true  # 실습: 거리 노이즈 적용 (양수 보장)
-        azimuth_noisy = azimuth_true  # 실습: 방위각 노이즈 적용
+        range_noisy = max(range_true + range_noise, 0) # 실습: 거리 노이즈 적용 (양수 보장)
+        azimuth_noisy = azimuth_true + azimuth_noise_rad  # 실습: 방위각 노이즈 적용
         
         # 실습: 극좌표를 다시 직교좌표로 변환
-        x_radar_noisy = 0.0  # 실습: math.cos 사용
-        y_radar_noisy = 0.0  # 실습: math.sin 사용
+        x_radar_noisy = range_noisy * math.cos(azimuth_noisy)  # 실습: math.cos 사용
+        y_radar_noisy = range_noisy * math.sin(azimuth_noisy)  # 실습: math.sin 사용
         
         return x_radar_noisy, y_radar_noisy
         #############################################################
@@ -1097,29 +1099,29 @@ class RadarEmu:
         #     return clutter_points
         
         # 실습: 클러터 포인트 수 결정 (포아송 분포)
-        num_clutter = 1  # 실습: max(1, int(self.rng.poisson(self.clutter_density)))
+        num_clutter = max(1, int(self.rng.poisson(self.clutter_density)))  # 실습: max(1, int(self.rng.poisson(self.clutter_density)))
         
         for _ in range(num_clutter):
             # 실습: FOV 내 랜덤 좌표 생성
-            clutter_range = 20.0  # 실습: self.rng.uniform(range_min, range_max), Hint: self.clutter_range_min, self.clutter_range_max 사용
+            clutter_range = self.rng.uniform(self.clutter_range_min,self.clutter_range_max)  # 실습: self.rng.uniform(range_min, range_max), Hint: self.clutter_range_min, self.clutter_range_max 사용
             
             # FOV 내에서 임의의 방위각 생성
             half_fov_rad = math.radians(self.fov_deg / 2.0)
-            clutter_azimuth = 0.0  # 실습: self.rng.uniform(-half_fov, half_fov)
+            clutter_azimuth = self.rng.uniform(-half_fov_rad, half_fov_rad)  # 실습: self.rng.uniform(-half_fov, half_fov)
             
             # 실습: 극좌표를 직교좌표로 변환
-            x_clutter = 20.0  # 실습: math.cos 사용
-            y_clutter = 0.0   # 실습: math.sin 사용
+            x_clutter = clutter_range * math.cos(clutter_azimuth)  # 실습: math.cos 사용
+            y_clutter = clutter_range * math.sin(clutter_azimuth)   # 실습: math.sin 사용
             z_clutter = 0.0   # 지면 레벨
             
             # 실습: 클러터 RCS와 전력 계산
-            rcs_clutter = 0.5  # 실습: self.rng.uniform(rcs_min, rcs_max), Hint: self.clutter_rcs_min, self.clutter_rcs_max 사용
-            clutter_range = 0.0 # 실습: math.sqrt 을 사용해 거리 계산, Hint: x_clutter, y_clutter 사용
-            power_clutter_dbm = -60.0  # 실습: CalculatePower 함수 호출, Hint: clutter_range, rcs_clutter, 'ground' 사용
+            rcs_clutter = self.rng.uniform(self.clutter_rcs_min, self.clutter_rcs_max)  # 실습: self.rng.uniform(rcs_min, rcs_max), Hint: self.clutter_rcs_min, self.clutter_rcs_max 사용
+            clutter_range = math.sqrt(x_clutter**2 + y_clutter**2) # 실습: math.sqrt 을 사용해 거리 계산, Hint: x_clutter, y_clutter 사용
+            power_clutter_dbm = self.CalculatePower(clutter_range, rcs_clutter, 'ground')  # 실습: CalculatePower 함수 호출, Hint: clutter_range, rcs_clutter, 'ground' 사용
             
             # 실습: 랜덤 도플러 생성
             doppler_noise_std = 1.0  # 도플러 노이즈의 표준편차
-            doppler_clutter = 0.0  # 실습: 가우시안 노이즈 사용, self.rng.normal
+            doppler_clutter = self.rng.normal(0, doppler_noise_std)  # 실습: 가우시안 노이즈 사용, self.rng.normal
             
             clutter_points.append((x_clutter, y_clutter, z_clutter, power_clutter_dbm, doppler_clutter, rcs_clutter))
         

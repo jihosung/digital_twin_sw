@@ -82,12 +82,12 @@ sensor_radar_node:
   rcs_threshold: -10.0         # Minimum RCS value for reliable detection (dBsm, typical: -20 to +20)
 
   # Noise parameters
-  enable_noise: true           # Enable/disable Gaussian noise simulation
+  enable_noise: false           # Enable/disable Gaussian noise simulation
   range_noise_std: 0.1         # Range measurement noise standard deviation (meters)
   azimuth_noise_std: 0.5       # Horizontal angle noise standard deviation (degrees)
   
   # Clutter noise parameters
-  enable_clutter: true         # Enable/disable clutter (false positive) generation
+  enable_clutter: false         # Enable/disable clutter (false positive) generation
   clutter_probability: 1.0     # Probability of clutter per scan cycle (0.0-1.0)
   clutter_density: 3.0         # Average number of clutter points per occurrence
   clutter_range_min: 5.0       # Minimum range for clutter generation (meters)

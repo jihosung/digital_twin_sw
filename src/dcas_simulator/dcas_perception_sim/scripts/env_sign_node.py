@@ -84,11 +84,11 @@ class EnvSignPublisher:
                     # ============================ #
                     # ====== TODO: .csv 파싱 ====== #
                     # ============================ #
-                    x = 0.0
-                    y = 0.0
-                    z = 0.0 # default : 2.0
-                    yaw = 0.0
-                    sign_class = 0
+                    x = float(row.get('x', 0.0))
+                    y = float(row.get('y', 0.0))
+                    z = float(row.get('z', 0.0)) # default : 2.0
+                    yaw = float(row.get('yaw', 0.0))
+                    sign_class = int(row.get('sign_class', 0))
                     # ============================ #
                     # ============================ #
                     # ============================ #
@@ -101,10 +101,11 @@ class EnvSignPublisher:
                 # ===================================== #
                 # ====== TODO: TrafficSign 채우기 ====== #
                 # ===================================== #
-                sign.id = 0
-                sign.sign_class = 0
+                sign.id = idx
+                idx += 1
+                sign.sign_class = sign_class
                 # Convert yaw to quaternion
-                yaw_rad = math.radians(0.0)
+                yaw_rad = math.radians(yaw)
 
                 # yaw 회전 --> Quaternion변환
                 # Roll: phi, Pitch: theta, Yaw: psi
@@ -112,8 +113,8 @@ class EnvSignPublisher:
                 # q_y = cos(phi/2)sin(theta/2)cos(psi/2) + sin(phi/2)cos(theta/2)sin(yaw/2)
                 # q_z = cos(phi/2)cos(theta/2)sin(psi/2) + sin(phi/2)sin(theta/2)cos(yaw/2)
                 # q_w = cos(phi/2)cos(theta/2)cos(psi/2) + sin(phi/2)sin(theta/2)sin(yaw/2)
-                quat = Quaternion(0, 0, 0, 0)
-                sign.pose = Pose(position=Point(x=0.0, y=0.0, z=0.0), orientation=quat)
+                quat = Quaternion(0, 0, math.sin(yaw_rad * 0.5), math.cos(yaw_rad * 0.5))
+                sign.pose = Pose(position=Point(x=x, y=y, z=z), orientation=quat)
 
                 # ===================================== #
                 # ===================================== #

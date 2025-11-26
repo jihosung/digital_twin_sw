@@ -113,7 +113,7 @@ class LidarEmu:
         self.roi_radius = rospy.get_param("/sensor_lidar_node/radius", 50.0)
         
         # Ring-based LiDAR parameters
-        self.num_rings = rospy.get_param("/sensor_lidar_node/num_rings", 16)  # Number of vertical rings
+        self.num_rings = rospy.get_param("/sensor_lidar_node/num_rings", 16)  # Number of vertical rings (vertical Channel)
         self.horizontal_resolution = rospy.get_param("/sensor_lidar_node/horizontal_resolution", 2.0)  # degrees per ray (더 sparse하게)
         self.vertical_fov_min = rospy.get_param("/sensor_lidar_node/vertical_fov_min", -15.0)  # degrees
         self.vertical_fov_max = rospy.get_param("/sensor_lidar_node/vertical_fov_max", 15.0)   # degrees
@@ -261,7 +261,7 @@ class LidarEmu:
                 # TODO: 레이 캐스팅 - 레이 캐스팅 실습
                 # Cast ray for this (azimuth, elevation) combination
                 # Hint: CastRay 함수를 호출하여 광선이 충돌한 점 찾기
-                hit_point = None  # 실습: self.CastRay(입력인자 1, 입력인자 2) 호출
+                hit_point = self.CastRay(azimuth_deg, elevation_deg)  # 실습: self.CastRay(입력인자 1, 입력인자 2) 호출
                 #############################################################
 
                 if hit_point is not None:
@@ -271,7 +271,7 @@ class LidarEmu:
                     # TODO: 노이즈 적용 - 노이즈 적용 실습
                     # Add noisy point with same intensity (noise doesn't affect material properties)
                     # Hint: ApplyNoise 함수를 사용하여 x, y, z 좌표에 노이즈 적용
-                    noisy_point = (hit_point[0], hit_point[1], hit_point[2])  # TODO: ApplyNoise 함수 구현 ,실습: ApplyNoise 함수 호출
+                    noisy_point = self.ApplyNoise(hit_point[0], hit_point[1], hit_point[2])  # TODO: ApplyNoise 함수 구현 ,실습: ApplyNoise 함수 호출
                     points_noise.append(noisy_point + (hit_point[3],))  # Keep original intensity
                     #############################################################
 
@@ -331,7 +331,7 @@ class LidarEmu:
         # TODO: 레이 캐스팅 - 레이 캐스팅 실습
         # Check intersection with ground plane
         # Hint: 지면과의 교점 계산
-        ground_hit = None  # 실습: IntersectRayWithGround 함수 호출
+        ground_hit = self.IntersectRayWithGround(ray_direction_x, ray_direction_y, ray_direction_z)  # 실습: IntersectRayWithGround 함수 호출
         #############################################################
 
         if ground_hit is not None:
@@ -375,7 +375,13 @@ class LidarEmu:
             if self.vehicles and closest_distance > vehicle_check_threshold:
                 for vehicle in self.vehicles.objects:
                     # 실습: IntersectRayWithBox 함수 호출하여 교점 계산
-                    pass
+                    vehicle_hit = self.IntersectRayWithBox(ray_direction_x, ray_direction_y, ray_direction_z, vehicle)
+                    if vehicle_hit is not None:
+                        hit_distance = math.sqrt(sum(p**2 for p in vehicle_hit))
+                        if hit_distance <= self.roi_radius and hit_distance < closest_distance:
+                            closest_distance = hit_distance
+                            closest_point = vehicle_hit
+                            hit_object_type = 'vehicle'
             #############################################################
         
         # Check intersections with guardrails (only if no close objects found)
@@ -389,7 +395,13 @@ class LidarEmu:
             if self.guardrails and closest_distance > guardrail_check_threshold:
                 for guardrail in self.guardrails.objects:
                     # 실습: IntersectRayWithBox 함수 호출하여 교점 계산
-                    pass
+                    guardrail_hit = self.IntersectRayWithBox(ray_direction_x, ray_direction_y, ray_direction_z, guardrail)
+                    if guardrail_hit is not None:
+                        hit_distance = math.sqrt(sum(p**2 for p in guardrail_hit))
+                        if hit_distance <= self.roi_radius and hit_distance < closest_distance:
+                            closest_distance = hit_distance
+                            closest_point = guardrail_hit
+                            hit_object_type = 'guardrail'
             #############################################################
 
         # Check intersections with signs (only if no close objects found)
@@ -403,7 +415,13 @@ class LidarEmu:
             if self.signs and closest_distance > sign_check_threshold:
                 for sign in self.signs.signs:
                     # 실습: IntersectRayWithSign 함수 호출하여 교점 계산
-                    pass
+                    sign_hit = self.IntersectRayWithSign(ray_direction_x, ray_direction_y, ray_direction_z, sign)
+                    if sign_hit is not None:
+                        hit_distance = math.sqrt(sum(p**2 for p in sign_hit))
+                        if hit_distance <= self.roi_radius and hit_distance < closest_distance:
+                            closest_distance = hit_distance
+                            closest_point = sign_hit
+                            hit_object_type = 'traffic_sign'
             #############################################################
 
         # Check intersections with lane markings (only if no close objects found)
@@ -416,7 +434,13 @@ class LidarEmu:
             # 실습: IntersectRayWithLanes 함수 호출 및 교점 검사
             if self.lanes and closest_distance > lane_check_threshold:
                 # 실습: IntersectRayWithLanes 함수 호출하여 교점 계산
-                pass
+                lanes_hit = self.IntersectRayWithLanes(ray_direction_x, ray_direction_y, ray_direction_z)
+                if lanes_hit is not None:
+                    hit_distance = math.sqrt(sum(p**2 for p in lanes_hit))
+                    if hit_distance <= self.roi_radius and hit_distance < closest_distance:
+                        closest_distance = hit_distance
+                        closest_point = lanes_hit
+                        hit_object_type = 'lane_marking'
             #############################################################
 
         if closest_point is not None:
@@ -824,11 +848,11 @@ class LidarEmu:
         # Calculate received power using simplified LiDAR equation
         # Power_receive = P_laser × reflectivity × cos(θ) × roughness / range²
         # TODO: 수식 완성, Hint: 레이저 출력, 반사율, 각도 요인, 거리에 따른 감쇠 고려, self.laser_power_watts 사용
-        power_receive = 0.0
+        power_receive = self.laser_power_watts * reflectivity * math.cos(incident_angle_rad) * roughness_factor / (range_m**2)
         
         # Apply new intensity formula: intensity = α × (Power_receive) / (range²)
         # TODO: 수식 완성, Hint: self.alpha_constant 사용
-        intensity_float = 0.0
+        intensity_float = self.alpha_constant * power_receive / (range_m**2)
         
         # Convert to integer and clamp to valid range [0, 255]
         intensity_int = int(round(intensity_float))
@@ -909,20 +933,21 @@ class LidarEmu:
         # TODO: 노이즈 적용 - 노이즈 적용 실습
         # Convert Cartesian to spherical coordinates
         # Hint: 직교좌표를 구면좌표(거리, 방위각, 고도각)로 변환
-        range_true = 10.0  # 실습: math.sqrt을 사용한 거리 계산
-        azimuth_true = 0.0  # 실습: math.atan2로 방위각 계산
-        elevation_true = 0.0  # 실습: math.atan2로 고도각 계산, Hint: z_sensor와 수평면 거리 사용
+        range_true = math.sqrt(x_sensor**2 + y_sensor**2 + z_sensor**2)  # 실습: math.sqrt을 사용한 거리 계산
+        azimuth_true = math.atan2(y_sensor, x_sensor)  # 실습: math.atan2로 방위각 계산
+        range_plan = math.sqrt(x_sensor**2 + y_sensor**2)
+        elevation_true = math.atan2(z_sensor, range_plan)  # 실습: math.atan2로 고도각 계산, Hint: z_sensor와 수평면 거리 사용
         
         # Add Gaussian noise in polar coordinates
         # Hint: 구면좌표계에서 가우시안 노이즈 적용
-        range_noise = 0.0  # 실습: self.rng.normal로 거리 노이즈 생성
-        azimuth_noise_rad = 0.0  # 실습: 방위각 노이즈 생성 및 라디안 변환, math.radians 사용, self.azimuth_noise_std 사용
-        elevation_noise_rad = 0.0  # 실습: 고도각 노이즈 생성 및 라디안 변환, math.radians 사용, self.elevation_noise_std 사용
+        range_noise = self.rng.normal(0, self.range_noise_std)  # 실습: self.rng.normal로 거리 노이즈 생성
+        azimuth_noise_rad = math.radians(self.rng.normal(0, self.azimuth_noise_std))  # 실습: 방위각 노이즈 생성 및 라디안 변환, math.radians 사용, self.azimuth_noise_std 사용
+        elevation_noise_rad = math.radians(self.rng.normal(0, self.elevation_noise_std))  # 실습: 고도각 노이즈 생성 및 라디안 변환, math.radians 사용, self.elevation_noise_std 사용
         
         # Apply noise
-        range_noisy = range_true  # 실습: 노이즈를 적용한 거리 (양수 보장)
-        azimuth_noisy = azimuth_true  # 실습: 노이즈를 적용한 방위각
-        elevation_noisy = elevation_true  # 실습: 노이즈를 적용한 고도각
+        range_noisy = max(range_true + range_noise, 0.0)  # 실습: 노이즈를 적용한 거리 (양수 보장)
+        azimuth_noisy = azimuth_true + azimuth_noise_rad  # 실습: 노이즈를 적용한 방위각
+        elevation_noisy = elevation_true + elevation_noise_rad  # 실습: 노이즈를 적용한 고도각
         #############################################################
         
         # Convert back to Cartesian coordinates
@@ -952,9 +977,9 @@ class LidarEmu:
             # TODO: 클러터 좌표 생성 - 클러터 좌표 생성 실습
             # Random spherical coordinates within sensor range
             # Hint: 구면좌표계에서 랜덤한 거리, 방위각, 고도각 생성
-            range_val = 10.0  # 실습: self.rng.uniform으로 클러터 범위 내 거리 생성, Hint: self.clutter_range_min, self.clutter_range_max
-            azimuth_deg = 0.0  # 실습: 0~360도 범위의 랜덤 방위각 생성
-            elevation_deg = 0.0  # 실습: vertical_fov 범위의 랜덤 고도각 생성, Hint: self.vertical_fov_min, self.vertical_fov_max
+            range_val = self.rng.uniform(self.clutter_range_min, self.clutter_range_max)  # 실습: self.rng.uniform으로 클러터 범위 내 거리 생성, Hint: self.clutter_range_min, self.clutter_range_max
+            azimuth_deg = self.rng.uniform(0, 360)  # 실습: 0~360도 범위의 랜덤 방위각 생성
+            elevation_deg = self.rng.uniform(self.vertical_fov_min, self.vertical_fov_max)  # 실습: vertical_fov 범위의 랜덤 고도각 생성, Hint: self.vertical_fov_min, self.vertical_fov_max
             #############################################################
 
             # Convert to Cartesian coordinates in sensor frame
