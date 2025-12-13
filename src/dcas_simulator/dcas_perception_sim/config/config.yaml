@@ -29,14 +29,14 @@ sensor_lidar_node:
   rotation_frequency: 10.0     # LiDAR rotation frequency (Hz, how fast it spins)
   
   # Noise parameters
-  enable_noise: true           # Enable/disable Gaussian noise simulation
+  enable_noise: false           # Enable/disable Gaussian noise simulation
   range_noise_std: 0.02        # Range measurement noise standard deviation (meters)
   azimuth_noise_std: 0.1       # Horizontal angle noise standard deviation (degrees)
   elevation_noise_std: 0.1     # Vertical angle noise standard deviation (degrees)
   noise_seed: 42               # Random seed for reproducible noise (null for random behavior)
   
   # Clutter noise parameters (false positive points)
-  enable_clutter: true         # Enable/disable clutter (false positive) generation
+  enable_clutter: false         # Enable/disable clutter (false positive) generation
   clutter_probability: 1.0     # Probability of clutter per scan cycle (reduced for performance)
   clutter_density: 10.0        # Average number of clutter points per occurrence (reduced)
   clutter_range_min: 5.0       # Minimum range for clutter generation (meters)

@@ -31,6 +31,11 @@ catkin_install_python(PROGRAMS
   scripts/vehicle_kinematic_node.py
   scripts/teleop_keyboard_node.py
   scripts/tf_sensor_frames_node.py
+  scripts/final_project/control_node.py
+  scripts/final_project/evaluation_node.py
+  scripts/final_project/lane_detection_node.py
+  scripts/final_project/scc_node.py
+  
   DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
 )
 
