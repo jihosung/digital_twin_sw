@@ -153,20 +153,6 @@ class SCCNode:
         total_points = len(self.lidar_points)
         rospy.logdebug_throttle(1.0, f"[SCC] Total LiDAR points: {total_points}")
 
-        # --- 2. ROI (Region of Interest) 필터링 ---
-        # 조건: 전방(x > 0), 최대 거리 이내, 차선 폭 이내
-        # x축: 전방, y축: 좌우
-        
-        # 팁: detection_width가 너무 좁으면 차량의 측면이 잘릴 수 있음.
-        # 디버깅을 위해 width를 살짝 여유 있게 잡는 것도 방법.
-        # half_width = self.detection_width / 2.0
-        
-        # mask = (self.lidar_points[:, 0] > 0.5) & \
-        #        (self.lidar_points[:, 0] < self.detection_range) & \
-        #        (np.abs(self.lidar_points[:, 1]) < half_width)
-        
-        # roi_points = self.lidar_points[mask]
-
         # --- 2. ROI (Region of Interest) 필터링 (회전 반영) ---
         # [설정] 조향비 (Steering Ratio)
         # 일반적인 승용차는 13~16 사이입니다. 차량 제원에 맞춰 수정하세요.
@@ -222,11 +208,11 @@ class SCCNode:
 
         # --- 3. LiDAR 클러스터링 (DBSCAN) ---
         # 파라미터 완화: 
-        # eps: 0.5 -> 1.0 (점 사이 거리가 1m 이내면 같은 물체로 간주)
-        # min_samples: 5 -> 3 (점이 3개만 모여도 물체로 인정)
+        # eps: 1.0 (점 사이 거리가 1m 이내면 같은 물체로 간주)
+        # min_samples: 3 (점이 3개만 모여도 물체로 인정)
         try:
             model = DBSCAN(eps=1.0, min_samples=3)
-            labels = model.fit_predict(roi_points[:, :2])
+            labels = model.fit_predict(roi_points[:, :3])
         except Exception as e:
             rospy.logerr(f"[SCC] Clustering error: {e}")
             return None

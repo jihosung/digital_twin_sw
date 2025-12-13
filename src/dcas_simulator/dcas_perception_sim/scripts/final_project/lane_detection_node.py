@@ -916,6 +916,7 @@ class LaneDetectionNode:
 
         self.R_vehicle_to_camera = rot_z @ rot_y @ rot_x
         self.R_camera_to_vehicle = self.R_vehicle_to_camera.T
+
     def _to_marker_array(self, lane_array_msg):
         ma = MarkerArray()
 
@@ -1474,55 +1475,6 @@ class LaneDetectionNode:
         point.z = 0.0
         return point
 
-    # def _fit_and_transform_bev(self, x_vals, y_vals, M, lane_id):
-    #     """
-    #     BEV 상의 픽셀들로부터 2차 함수 피팅 후 Map 좌표로 변환
-        
-    #     중요: BEV 픽셀 좌표 -> 원본 이미지 픽셀 -> Map 좌표 순으로 변환하거나
-    #           BEV 픽셀 -> 실제 거리(Meter) 비율을 알면 바로 변환 가능합니다.
-    #           여기서는 정확성을 위해 [BEV -> 원본 -> Map] 방식을 사용합니다.
-    #     """
-    #     if len(x_vals) < 10: return None
-
-    #     # 2차 함수 피팅 (x = ay^2 + by + c) - 곡선 도로 대응
-    #     fit = np.polyfit(y_vals, x_vals, 2)
-    #     poly = np.poly1d(fit)
-
-    #     # 샘플링 (BEV 이미지의 y축 전체에 대해)
-    #     plot_y = np.linspace(0, 480 - 1, 10) # 10개 점만 추출
-    #     plot_x = poly(plot_y)
-
-    #     lane_msg = Lane()
-    #     lane_msg.id = lane_id
-    #     lane_msg.lane_type = 1
-    #     lane_msg.header.stamp = rospy.Time.now()
-    #     lane_msg.header.frame_id = "map"
-
-    #     # 역변환 행렬 (BEV -> Original Image)
-    #     Minv = np.linalg.inv(M)
-
-    #     for px, py in zip(plot_x, plot_y):
-    #         # 1. BEV Pixel -> Original Image Pixel
-    #         # 행렬 곱: P_orig = Minv @ P_bev
-    #         vec = np.array([px, py, 1.0])
-    #         orig_vec = np.dot(Minv, vec)
-            
-    #         # 동차 좌표 정규화 (scale로 나누기)
-    #         if orig_vec[2] != 0:
-    #             u = orig_vec[0] / orig_vec[2]
-    #             v = orig_vec[1] / orig_vec[2]
-    #         else:
-    #             continue
-
-    #         # 2. Original Image Pixel -> Map Coordinate
-    #         # (이전에 만든 pixel_to_map 함수 재사용!)
-    #         map_point = self._pixel_to_map(u, v)
-            
-    #         if map_point:
-    #             lane_msg.lane_lines.append(map_point)
-        
-    #     return lane_msg
-
     def pixel_to_vehicle(self, u, v):
         """
         이미지 픽셀 좌표(u, v)를 차량 기준 좌표(x, y)로 변환
@@ -1605,91 +1557,6 @@ class LaneDetectionNode:
         point.z = 0.0
         
         return point
-
-    # def _draw_fitted_line(self, img, points, height, color):
-    #     """디버깅용: 피팅된 차선을 이미지에 그리는 헬퍼 함수"""
-    #     points = np.array(points)
-    #     x = points[:, 0]
-    #     y = points[:, 1]
-        
-    #     if len(x) < 2: return
-
-    #     # 1차 함수 피팅 (x = ay + b)
-    #     fit = np.polyfit(y, x, 1)
-    #     poly = np.poly1d(fit)
-
-    #     # 그리기용 포인트 생성 (이미지 하단 ~ ROI 상단)
-    #     plot_y = np.linspace(height * 0.6, height, 10)
-    #     plot_x = poly(plot_y)
-        
-    #     # 정수형 좌표로 변환하여 그리기
-    #     pts = np.array([np.transpose(np.vstack([plot_x, plot_y]))], np.int32)
-    #     cv2.polylines(img, pts, False, color, thickness=3)
-
-    # def _create_lane_msg_from_points(self, points, img_height, lane_id):
-    #     """이미지 포인트들로부터 Lane 메시지 생성"""
-    #     if not points:
-    #         return None
-            
-    #     # 다항식 피팅 (1차 함수: x = ay + b)
-    #     # y를 기준으로 x를 구하는 것이 수직선에 가까운 차선에서 더 안정적임
-    #     points = np.array(points)
-    #     x = points[:, 0]
-    #     y = points[:, 1]
-        
-    #     if len(x) < 2: return None
-        
-    #     fit = np.polyfit(y, x, 1) # x = fit[0]*y + fit[1]
-    #     poly = np.poly1d(fit)
-
-    #     # 샘플링 (이미지 하단에서 ROI 상단까지)
-    #     y_samples = np.linspace(img_height, img_height * 0.6, 10)
-    #     x_samples = poly(y_samples)
-
-    #     lane_msg = Lane()
-    #     lane_msg.id = lane_id
-    #     lane_msg.lane_type = 1 # solid
-    #     lane_msg.header.stamp = rospy.Time.now()
-    #     lane_msg.header.frame_id = "map"
-
-    #     # 좌표 변환 (Pixel -> Vehicle -> Map)
-    #     for vx, vy in zip(x_samples, y_samples):
-    #         map_point = self._pixel_to_map(vx, vy)
-    #         if map_point:
-    #             lane_msg.lane_lines.append(map_point)
-                
-    #     return lane_msg
-
-    # def _pixel_to_map(self, u, v):
-    #     """픽셀 좌표 -> 차량 좌표 -> 지도 좌표 변환"""
-        
-    #     # 1. 픽셀 -> 차량 좌표 (위에서 만든 함수 사용)
-    #     vehicle_point = self.pixel_to_vehicle(u, v)
-    #     if vehicle_point is None:
-    #         return None
-            
-    #     local_x = vehicle_point.x
-    #     local_y = vehicle_point.y
-        
-    #     # 2. 차량 좌표 -> 지도(Map) 좌표
-    #     # (기존 코드와 동일)
-    #     vehicle_x = self.vehicle_state.pose.position.x
-    #     vehicle_y = self.vehicle_state.pose.position.y
-        
-    #     quat = self.vehicle_state.pose.orientation
-    #     siny_cosp = 2.0 * (quat.w * quat.z + quat.x * quat.y)
-    #     cosy_cosp = 1.0 - 2.0 * (quat.y * quat.y + quat.z * quat.z)
-    #     yaw = np.arctan2(siny_cosp, cosy_cosp)
-        
-    #     map_x = vehicle_x + (local_x * np.cos(yaw) - local_y * np.sin(yaw))
-    #     map_y = vehicle_y + (local_x * np.sin(yaw) + local_y * np.cos(yaw))
-        
-    #     point = Point()
-    #     point.x = map_x
-    #     point.y = map_y
-    #     point.z = 0.0
-        
-    #     return point
 
     def callback_timer(self, event):
         """타이머 콜백 - 주기적으로 차선 검출 수행"""
