@@ -15,7 +15,7 @@
 
   <!-- Lane Detection -->
   <node pkg="dcas_perception_sim" type="lane_detection_node.py" name="lane_detection_node" output="screen">
-    <param name="detection_mode" value="csv" />   <!--"csv" or "image" 실제 test는 image로 진행-->
+    <param name="detection_mode" value="image" />   <!--"csv" or "image" 실제 test는 image로 진행-->
     <param name="detection_range" value="50.0" />
     <param name="target_center_lane" value="1" />  <!-- 1: lane 0-1 사이, 2: lane 1-2 사이 -->
   </node>
@@ -58,7 +58,6 @@
     <node pkg="rviz" type="rviz" name="rviz"
           args="-d $(find dcas_perception_sim)/rviz/dcas_perception.rviz">
 
-      <!-- GPU 무시하고 CPU 렌더링 강제 -->
       <env name="LIBGL_ALWAYS_SOFTWARE" value="1" />
       <env name="MESA_LOADER_DRIVER_OVERRIDE" value="llvmpipe" />
 

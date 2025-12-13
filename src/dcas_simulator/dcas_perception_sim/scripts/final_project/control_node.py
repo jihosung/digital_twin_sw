@@ -231,6 +231,7 @@ class ControlNode:
 
         # 제한
         accel_cmd = np.clip(accel_cmd, -3.0, 3.0)
+        # accel_cmd = 0 # image debug용
 
         return accel_cmd
 
@@ -309,6 +310,7 @@ class ControlNode:
             self.visualize_path(center_path)
             self.visualize_target_point(target_point)
         else:
+            # print('no center lane') # debug
             steer_cmd = 0.0
 
         # 속도 제어
