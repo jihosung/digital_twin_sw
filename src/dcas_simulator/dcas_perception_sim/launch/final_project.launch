@@ -1,0 +1,57 @@
+<launch>
+  <arg name="with_vehicle" default="true" />
+  <arg name="with_rviz" default="true" />
+  <arg name="with_control" default="true" />
+  <rosparam file="$(find dcas_perception_sim)/config/config.yaml" command="load" />
+
+  <!-- Environment ground-truth publishers -->
+  <node pkg="dcas_perception_sim" type="env_lane_node.py" name="env_lane_node" output="screen" />
+  <node pkg="dcas_perception_sim" type="env_surrounding_vehicle_node.py" name="env_surrounding_vehicle_node" output="screen" />
+
+  <!-- Sensors -->
+  <node pkg="dcas_perception_sim" type="sensor_lidar_node.py" name="sensor_lidar_node" output="screen" />
+  <node pkg="dcas_perception_sim" type="sensor_radar_node.py" name="sensor_radar_node" output="screen" />
+  <node pkg="dcas_perception_sim" type="sensor_camera_node.py" name="sensor_camera_node" output="screen" />
+
+  <!-- Lane Detection -->
+  <node pkg="dcas_perception_sim" type="lane_detection_node.py" name="lane_detection_node" output="screen">
+    <param name="detection_mode" value="csv" />   <!--"csv" or "image" 실제 test는 image로 진행-->
+    <param name="detection_range" value="50.0" />
+    <param name="target_center_lane" value="1" />  <!-- 1: lane 0-1 사이, 2: lane 1-2 사이 -->
+  </node>
+
+  <!-- SCC -->
+  <node pkg="dcas_perception_sim" type="scc_node.py" name="scc_node" output="screen" />
+
+  <!-- Vehicle (optional) -->
+  <group if="$(arg with_vehicle)">
+    <node pkg="dcas_perception_sim" type="vehicle_kinematic_node.py" name="vehicle_kinematic_node" output="screen" />
+    <node pkg="dcas_perception_sim" type="tf_sensor_frames_node.py" name="tf_sensor_frames_node" output="screen" />
+
+    <!-- Control node or teleop -->
+    <group if="$(arg with_control)">
+      <node pkg="dcas_perception_sim" type="control_node.py" name="control_node" output="screen">
+        <param name="target_speed" value="10.0" />
+        <param name="lookahead_distance" value="8.0" />
+        <param name="steering_gain" value="1.0" />
+        <param name="speed_gain_p" value="0.5" />
+        <param name="wheelbase" value="2.7" />
+        <param name="max_steer_angle" value="30.0" />
+      </node>
+    </group>
+    <group unless="$(arg with_control)">
+      <node pkg="dcas_perception_sim" type="teleop_keyboard_node.py" name="teleop_keyboard_node" output="screen" />
+    </group>
+  </group>
+
+  <!-- Evaluation Node -->
+    <node pkg="dcas_perception_sim" type="evaluation_node.py" name="evaluation_node" output="screen" />
+
+  <!-- Rviz (optional) -->
+  <group if="$(arg with_rviz)">
+    <node pkg="rviz" type="rviz" name="rviz" args="-d $(find dcas_perception_sim)/rviz/final_project.rviz" />
+  </group>
+
+</launch>
+
+

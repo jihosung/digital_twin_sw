@@ -56,7 +56,7 @@ class VehicleDynamicsNode:
         self.model = model
         self.state = np.array([
             0.0,  # x
-            0.0,  # y
+            1.750,  # y
             0.0,  # psi
             0.0,  # vx
             0.0,  # vy
