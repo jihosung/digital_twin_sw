@@ -1155,7 +1155,10 @@ class LaneDetectionNode:
 
         M = cv2.getPerspectiveTransform(src_pts, dst_pts)
         Minv = cv2.getPerspectiveTransform(dst_pts, src_pts)
-
+        
+        # [DEBUG 0] 원본 이미지 출력
+        cv2.imshow("0. Original Image", self.current_image)
+        
         # [DEBUG 1] 원본 이미지에 ROI 영역 그리기
         debug_src = self.current_image.copy()
         pts = src_pts.reshape((-1, 1, 2)).astype(np.int32)
